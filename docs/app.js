@@ -233,6 +233,8 @@
     if (a !== "search") $("#searchBar").hidden = true;
     window.WIDGETS && window.WIDGETS._stop && window.WIDGETS._stop();
     if (!a) pageHome();
+    else if (a === "room" && !b) { setTab("room"); window.ROOM.list(view, setTitle); }
+    else if (a === "room") { setTab("room"); window.ROOM.page(view, b, setTitle, c); }
     else if (a === "t") pageOldTopic(b);
     else if (a === "s" || a === "path" || a === "practice") location.replace("#/");
     else if (a === "setups") pageSetups();
@@ -248,6 +250,22 @@
   }
   window.addEventListener("hashchange", route);
   route();
+
+  /* ---------- links from the Production Hub: dpfieldguide://open/setup/book-light opens #/setup/book-light ---------- */
+  function openDeepLink(url) {
+    const m = String(url || "").match(/^dpfieldguide:\/\/open\/?(.*)$/i);
+    if (!m) return;
+    const path = m[1].replace(/^\/+|\/+$/g, "");
+    location.hash = "#/" + (/^(tool|setup|room|setups|glossary|settings|t)(\/|$)/.test(path) ? path : "");
+  }
+  try {
+    const AppP = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.App;
+    if (AppP) {
+      AppP.addListener("appUrlOpen", (e) => openDeepLink(e && e.url));
+      AppP.getLaunchUrl && AppP.getLaunchUrl().then((r) => r && openDeepLink(r.url)).catch(() => {});
+    }
+  } catch (e) { /* not running in the Android app */ }
+  window.FG.openDeepLink = openDeepLink;
 
   if ("serviceWorker" in navigator && location.protocol !== "file:") {
     navigator.serviceWorker.register("sw.js").catch(() => { /* offline install not available here */ });

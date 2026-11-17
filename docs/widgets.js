@@ -626,7 +626,7 @@
         <div><span>Morning golden hour</span><b>${hm(gm1)} to ${hm(gm2)}</b></div>
         <div><span>Evening golden hour</span><b>${hm(ge1)} to ${hm(ge2)}</b></div>
         <div><span>Evening blue hour</span><b>${hm(ge2)} to ${hm(be2)}</b></div></div>
-        <p class="small">${p.el > 45 ? "High sun: hard top light, dark eye sockets. Find shade, fly a 6x6 or 8x8 silk over the actor, or turn them so the sun becomes a backlight." : p.el > 6 ? "Mid-height sun: put it behind or to the side of your actor as a rim, and bounce or fill the face." : p.el > -4 ? "Golden hour: low, warm and soft-edged. Backlight with it and bounce a little back. It changes fast, so shoot the wides first." : p.el > -6 ? "Blue hour: soft, even, blue. Practicals and car lights pop." : "Night."}</p>`;
+        <p class="small">${p.el > 45 ? "High sun: hard top light, dark eye sockets. Find shade, hold your 5-in-1 diffuser or the Fast Flags silk over a close-up, or turn the actor so the sun becomes a backlight." : p.el > 6 ? "Mid-height sun: put it behind or to the side of your actor as a rim, and bounce or fill the face." : p.el > -4 ? "Golden hour: low, warm and soft-edged. Backlight with it and bounce a little back. It changes fast, so shoot the wides first." : p.el > -6 ? "Blue hour: soft, even, blue. Practicals and car lights pop." : "Night."}</p>`;
       dial();
     }
     el.querySelector("#gps").addEventListener("click", () => {

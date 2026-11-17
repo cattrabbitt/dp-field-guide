@@ -7,6 +7,8 @@ window.FG_CONFIG = {
   masterClassUrl: "https://claude.ai/artifact/4e2rkcSBoNNDkmqMAg6nYm",
   // The Lighting Planner runs on the PC. Links open the matching lesson there. Leave empty to hide.
   plannerUrl: "http://localhost:8765",
+  // The Production Hub. Rooms link to their project's Locations and Paperwork tabs there. Leave empty to hide.
+  hubUrl: "https://hub.cameroncurrin.com",
   kit: {
     cameras: [
       { name: "Blackmagic PYXIS 6K", w: 36, h: 24, iso: [400, 3200] },
