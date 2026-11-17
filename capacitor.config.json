@@ -1,0 +1,8 @@
+{
+  "appId": "com.cameroncurrin.dpfieldguide",
+  "appName": "DP Field Guide",
+  "webDir": "docs",
+  "android": {
+    "allowMixedContent": false
+  }
+}

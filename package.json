@@ -1,0 +1,16 @@
+{
+  "name": "dp-field-guide",
+  "version": "1.0.0",
+  "private": true,
+  "description": "DP Field Guide: cinematography lessons, setups and on-set tools that work offline. Web app in docs/, Android app built by GitHub Actions.",
+  "scripts": {
+    "build:sw": "python3 docs/tools/build.py"
+  },
+  "dependencies": {
+    "@capacitor/android": "7.6.10",
+    "@capacitor/core": "7.6.10"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "7.6.10"
+  }
+}
