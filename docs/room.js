@@ -497,6 +497,26 @@
     draw();
   }
 
+  // Opened from the hub's "Plan the light" button: dpfieldguide://open/room/new?hub=coldcowboy&loc=<id>&name=...&lat=..&lon=..&date=YYYY-MM-DD&call=HH:MM&wrap=HH:MM&notes=...
+  // Reuses the room already made for that hub location, so tapping the button twice doesn't make two rooms.
+  R.fromHub = function (q) {
+    const hub = String(q.get("hub") || "").toLowerCase().replace(/[^a-z0-9-]/g, ""), loc = String(q.get("loc") || "").slice(0, 60);
+    let r = loc ? rooms().find((x) => x.hub === hub && x.hubLoc === loc) : null;
+    if (!r) { r = newRoom(); r.hub = hub; r.hubLoc = loc; }
+    const num = (k) => { const v = parseFloat(q.get(k)); return isFinite(v) ? v : null; };
+    const txt = (k, n) => String(q.get(k) || "").slice(0, n || 200);
+    if (q.get("name")) r.name = txt("name", 80);
+    if (q.get("project")) r.project = txt("project", 80);
+    if (num("lat") != null && num("lon") != null && Math.abs(num("lat")) <= 90 && Math.abs(num("lon")) <= 180) { r.lat = +num("lat").toFixed(4); r.lon = +num("lon").toFixed(4); }
+    if (/^\d{4}-\d{2}-\d{2}$/.test(q.get("date") || "")) r.date = q.get("date");
+    if (/^\d{1,2}:\d{2}$/.test(q.get("call") || "")) r.start = q.get("call").padStart(5, "0");
+    if (/^\d{1,2}:\d{2}$/.test(q.get("wrap") || "")) r.end = q.get("wrap").padStart(5, "0");
+    if (q.get("notes") && !r.notes) r.notes = txt("notes", 2000);
+    if (!r.notes || r.look === "natural") { const L = lookFromNotes(r); if (L) r.look = L; }
+    save();
+    return r;
+  };
+
   R._analyze = analyze; // for tests
   window.ROOM = R;
 })();

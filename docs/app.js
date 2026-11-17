@@ -255,7 +255,9 @@
   function openDeepLink(url) {
     const m = String(url || "").match(/^dpfieldguide:\/\/open\/?(.*)$/i);
     if (!m) return;
-    const path = m[1].replace(/^\/+|\/+$/g, "");
+    const [rawPath, qs] = m[1].split("?");
+    const path = rawPath.replace(/^\/+|\/+$/g, "");
+    if (path === "room/new" && window.ROOM) { const r = window.ROOM.fromHub(new URLSearchParams(qs || "")); location.hash = "#/room/" + r.id + "/room"; return; }
     location.hash = "#/" + (/^(tool|setup|room|setups|glossary|settings|t)(\/|$)/.test(path) ? path : "");
   }
   try {
