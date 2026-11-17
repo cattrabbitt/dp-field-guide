@@ -1,7 +1,7 @@
 {
   "name": "DP Field Guide",
   "short_name": "DP Guide",
-  "description": "Cinematography field guide to the DP's job: prep, framing, movement, lenses, exposure, scopes, light, grip and setups. Works offline.",
+  "description": "On-set cinematography tools, lighting setups and a glossary. Works offline.",
   "start_url": "./#/",
   "scope": "./",
   "display": "standalone",

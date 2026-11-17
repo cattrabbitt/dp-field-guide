@@ -1,4 +1,4 @@
-/* DP Field Guide: router, pages, search, progress, practice log. Content lives in data/content.js and data/setups.js,
+/* DP Field Guide: router, pages and search. Content lives in data/content.js and data/setups.js,
    interactive tools in widgets.js. Everything runs offline once loaded (see sw.js). */
 (function () {
   "use strict";
@@ -9,7 +9,7 @@
 
   /* ---------- saved state (one key, wrapped in try/catch: storage can be missing or full) ---------- */
   const KEY = "dpfg.v1";
-  let ST = { learned: {}, quiz: {}, log: [], settings: {} };
+  let ST = { settings: {} };
   try { ST = Object.assign(ST, JSON.parse(localStorage.getItem(KEY) || "{}")); } catch (e) { /* start fresh */ }
   function save() { try { localStorage.setItem(KEY, JSON.stringify(ST)); } catch (e) { toast("Could not save on this device"); } }
   window.FG = { state: () => ST, save, toast, esc, kit, units };
@@ -28,14 +28,20 @@
   }
 
   /* ---------- lookups ---------- */
-  const TOPIC = {}; G.sections.forEach((s) => s.topics.forEach((t) => { t.section = s.id; TOPIC[t.id] = t; }));
-  const SECTION = {}; G.sections.forEach((s) => (SECTION[s.id] = s));
+  const TL = G.topicLinks || {};
   const SETUP = {}; S.forEach((x) => (SETUP[x.id] = x));
 
   function mcLink(id) {
     if (!CFG.masterClassUrl || !id) return "";
     const L = (G.masterClass || {})[id];
-    return `<a class="chip" href="${esc(CFG.masterClassUrl)}#lesson-${String(id).replace(/\./g, "-")}" target="_blank" rel="noopener">Master class ${esc(id)}${L ? ": " + esc(L) : ""}</a>`;
+    return `<a class="chip" href="${mcHref(id)}" target="_blank" rel="noopener">Master Class ${esc(id)}${L ? ": " + esc(L) : ""}</a>`;
+  }
+  function mcHref(id) { return esc(CFG.masterClassUrl) + "#lesson-" + String(id).replace(/\./g, "-"); }
+  function lessonButton(id) {
+    if (!CFG.masterClassUrl || !id) return "";
+    const L = (G.masterClass || {})[id];
+    return `<a class="btn wide" href="${mcHref(id)}" target="_blank" rel="noopener">Full lesson in the Master Class${L ? ": " + esc(L) : ""}</a>
+      <p class="small muted center">Opens your private Master Class in the Claude app. Needs signal.</p>`;
   }
   function plannerLink(lesson) {
     if (!CFG.plannerUrl || !lesson) return "";
@@ -57,106 +63,14 @@
   }
   function setTab(name) { document.querySelectorAll(".tabs a").forEach((a) => a.classList.toggle("on", a.dataset.tab === name)); }
 
-  function progress(sec) {
-    const n = sec.topics.length, d = sec.topics.filter((t) => ST.learned[t.id]).length;
-    return { n, d, pct: n ? Math.round((100 * d) / n) : 0 };
-  }
+  function pageHome() { pageTools(true); }
 
-  function pageHome() {
-    setTitle("", false); setTab("learn");
-    const all = G.sections.reduce((a, s) => a + s.topics.length, 0), done = Object.keys(ST.learned).filter((k) => TOPIC[k]).length;
-    const next = nextTopic();
-    view.innerHTML = `
-      <div class="hero"><h1>Learn the DP's job, with the kit you own.</h1>
-        <p>${esc(G.intro)}</p>
-        <p class="small muted">${done} of ${all} topics marked learned.</p>
-        ${next ? `<a class="btn primary wide" href="#/t/${next.id}">Next up: ${esc(next.title)}</a>` : ""}
-      </div>
-      <div class="section-label">Sections</div>
-      <div class="grid">${G.sections.map((s) => { const p = progress(s); return `
-        <a class="tile" href="#/s/${s.id}"><b>${esc(s.title)}</b><span>${esc(s.blurb)}</span><div class="bar"><i style="width:${p.pct}%"></i></div></a>`; }).join("")}
-      </div>
-      <div class="section-label">More</div>
-      <div class="list">
-        <a class="row" href="#/setups"><div class="t"><b>Lighting setups</b><span>Example frames, layouts, numbers to dial in, and what to watch for.</span></div><span class="chev">›</span></a>
-        <a class="row" href="#/path"><div class="t"><b>Study path</b><span>The order to learn things in, matched to the master class weeks.</span></div><span class="chev">›</span></a>
-        <a class="row" href="#/glossary"><div class="t"><b>Glossary</b><span>Every DP term in plain English, from calls to cards.</span></div><span class="chev">›</span></a>
-        <a class="row" href="#/sources"><div class="t"><b>Sources and books</b><span>Where every number in this guide comes from.</span></div><span class="chev">›</span></a>
-        <a class="row" href="#/settings"><div class="t"><b>Settings and my kit</b><span>Cameras, lenses, lights, units, night mode, backup.</span></div><span class="chev">›</span></a>
-      </div>
-      <div class="footer">DP Field Guide ${esc(CFG.version || "")}. Works offline once opened.</div>`;
-  }
-
-  function nextTopic() {
-    for (const s of G.sections) for (const t of s.topics) if (!ST.learned[t.id]) return t;
-    return null;
-  }
-
-  function pageSection(id) {
-    const s = SECTION[id]; if (!s) return notFound();
-    setTitle(s.title, true); setTab("learn");
-    view.innerHTML = `<p class="lead">${esc(s.blurb)}</p>
-      <div class="list">${s.topics.map((t) => `
-        <a class="row" href="#/t/${t.id}"><span class="dot ${ST.learned[t.id] ? "done" : ""}"></span><div class="t"><b>${esc(t.title)}</b><span>${esc(t.summary)}</span></div><span class="chev">›</span></a>`).join("")}
-      </div>`;
-  }
-
-  function quizHtml(t) {
-    if (!t.quiz || !t.quiz.length) return "";
-    return `<div class="box quiz" id="quiz"><h3>Check yourself</h3>${t.quiz.map((q, i) => `
-      <div class="q" data-i="${i}"><b>${esc(q.q)}</b><div class="opts">${q.a.map((a, j) => `<button data-j="${j}">${esc(a)}</button>`).join("")}</div><div class="why" hidden>${esc(q.why || "")}</div></div>`).join("")}
-      <div class="small muted" id="qscore"></div></div>`;
-  }
-  function wireQuiz(t) {
-    const box = $("#quiz"); if (!box) return;
-    const got = {};
-    box.querySelectorAll(".q").forEach((qd) => {
-      const i = +qd.dataset.i, q = t.quiz[i];
-      qd.querySelectorAll("button").forEach((b) => b.addEventListener("click", () => {
-        if (got[i] != null) return;
-        const j = +b.dataset.j; got[i] = j === q.c;
-        b.classList.add(j === q.c ? "right" : "wrong");
-        qd.querySelectorAll("button")[q.c].classList.add("right");
-        qd.querySelector(".why").hidden = false;
-        const n = Object.keys(got).length;
-        if (n === t.quiz.length) {
-          const r = Object.values(got).filter(Boolean).length;
-          ST.quiz[t.id] = { right: r, of: n, when: new Date().toISOString().slice(0, 10) }; save();
-          $("#qscore").textContent = `${r} of ${n} right.` + (r === n ? " Nice. Mark it learned below." : " Read the part you missed, then try the drill.");
-        }
-      }));
-    });
-  }
-
-  function pageTopic(id) {
-    const t = TOPIC[id]; if (!t) return notFound();
-    const sec = SECTION[t.section];
-    setTitle(t.title, true); setTab("learn");
-    const idx = sec.topics.indexOf(t), nxt = sec.topics[idx + 1];
-    const links = [mcLink(t.mc), plannerLink(t.planner), ...(t.setups || []).map((x) => SETUP[x] ? `<a class="chip" href="#/setup/${x}">Setup: ${esc(SETUP[x].title)}</a>` : ""),
-      ...(t.tools || []).map((x) => G.tools[x] ? `<a class="chip" href="#/tool/${x}">Tool: ${esc(G.tools[x].title)}</a>` : "")].join("");
-    view.innerHTML = `
-      <p class="lead">${esc(t.summary)}</p>
-      <div class="body">${t.html}</div>
-      ${t.widget ? `<div class="box" data-widget="${t.widget}"></div>` : ""}
-      ${t.watch ? `<div class="box watch"><h3>Watch out for</h3><ul>${t.watch.map((w) => `<li>${w}</li>`).join("")}</ul></div>` : ""}
-      ${t.drill ? `<div class="box drill"><h3>Practice drill</h3><p>${t.drill.intro || ""}</p><ol>${t.drill.steps.map((w) => `<li>${w}</li>`).join("")}</ol>
-        ${t.drill.check ? `<p class="small"><b>You got it when:</b> ${t.drill.check}</p>` : ""}
-        <a class="btn" href="#/practice/new/${t.id}">Log this drill</a></div>` : ""}
-      ${quizHtml(t)}
-      ${links ? `<div class="section-label">Go deeper</div><div class="chips">${links}</div>` : ""}
-      ${t.book && t.book.length ? `<div class="box ref"><h3>In your books</h3><ul>${t.book.map(bookLine).join("")}</ul></div>` : ""}
-      ${t.src && t.src.length ? `<div class="small"><b>Sources:</b><ul>${srcLinks(t.src)}</ul></div>` : ""}
-      <div class="btnrow">
-        <button class="btn ${ST.learned[t.id] ? "" : "primary"}" id="learned">${ST.learned[t.id] ? "Learned. Tap to unmark" : "Mark as learned"}</button>
-        ${nxt ? `<a class="btn" href="#/t/${nxt.id}">Next: ${esc(nxt.title)}</a>` : `<a class="btn" href="#/s/${sec.id}">Back to ${esc(sec.title)}</a>`}
-      </div>`;
-    $("#learned").addEventListener("click", () => {
-      if (ST.learned[t.id]) delete ST.learned[t.id]; else ST.learned[t.id] = new Date().toISOString().slice(0, 10);
-      save(); pageTopic(id);
-    });
-    wireQuiz(t);
-    mountWidgets(view);
+  function pageOldTopic(id) {
+    const t = TL[id]; if (!t) return notFound();
+    if (t.tool && G.tools[t.tool]) { location.replace("#/tool/" + t.tool); return; }
+    setTitle(t.title, true); setTab("tools");
+    view.innerHTML = `<p class="lead">This lesson lives in your Master Class now. The Field Guide keeps the on-set tools.</p>${lessonButton(t.mc)}
+      <a class="btn wide" href="#/">Open the tools</a>`;
   }
 
   function mountWidgets(root) {
@@ -205,116 +119,44 @@
       </dl><p class="small muted">Levels come from the planner's light math and Aputure and Nanlite published output. Modifier losses marked as estimates in the planner are estimates here too. Meter once on set and adjust.</p></div>
       <h2>Steps</h2><ol>${x.steps.map((s) => `<li>${s}</li>`).join("")}</ol>
       <div class="box watch"><h3>Watch out for</h3><ul>${x.watch.map((s) => `<li>${s}</li>`).join("")}</ul></div>
-      ${x.vary ? `<div class="box drill"><h3>Try a variation</h3><ul>${x.vary.map((s) => `<li>${s}</li>`).join("")}</ul><a class="btn" href="#/practice/new/setup-${x.id}">Log this setup</a></div>` : ""}
-      <div class="chips">${plannerLink(x.planner)}${(x.mc || []).map(mcLink).join("")}${(x.topics || []).map((k) => TOPIC[k] ? `<a class="chip" href="#/t/${k}">${esc(TOPIC[k].title)}</a>` : "").join("")}</div>
+      ${x.vary ? `<div class="box drill"><h3>Try a variation</h3><ul>${x.vary.map((s) => `<li>${s}</li>`).join("")}</ul></div>` : ""}
+      <div class="chips">${plannerLink(x.planner)}${(x.mc || []).map(mcLink).join("")}${[...new Set((x.topics || []).map((k) => TL[k] && TL[k].tool).filter(Boolean))].map((k) => G.tools[k] ? `<a class="chip" href="#/tool/${k}">Tool: ${esc(G.tools[k].title)}</a>` : "").join("")}</div>
       ${x.book && x.book.length ? `<div class="box ref"><h3>In your books</h3><ul>${x.book.map(bookLine).join("")}</ul></div>` : ""}`;
   }
 
-  function pageTools() {
-    setTitle("Tools", false); setTab("tools");
+  function pageTools(home) {
+    setTitle(home ? "" : "Tools", false); setTab("tools");
     const groups = {};
     Object.entries(G.tools).forEach(([k, t]) => (groups[t.group] = groups[t.group] || []).push([k, t]));
-    view.innerHTML = `<p class="lead">Calculators and on-set helpers. All of them work with no signal.</p>` + Object.keys(groups).map((g) => `
+    view.innerHTML = `<div class="hero"><h1>Tools for the set.</h1><p>${esc(G.intro)}</p></div>` + Object.keys(groups).map((g) => `
       <div class="section-label">${esc(g)}</div>
-      <div class="list">${groups[g].map(([k, t]) => `<a class="row" href="#/tool/${k}"><div class="t"><b>${esc(t.title)}</b><span>${esc(t.blurb)}</span></div>${t.beta ? '<span class="tag warn">Beta</span>' : ""}<span class="chev">›</span></a>`).join("")}</div>`).join("");
+      <div class="list">${groups[g].map(([k, t]) => `<a class="row" href="#/tool/${k}"><div class="t"><b>${esc(t.title)}</b><span>${esc(t.blurb)}</span></div>${t.beta ? '<span class="tag warn">Beta</span>' : ""}<span class="chev">›</span></a>`).join("")}</div>`).join("") + `
+      <div class="section-label">More</div>
+      <div class="list">
+        <a class="row" href="#/setups"><div class="t"><b>Lighting setups</b><span>Example frames, layouts and levels to dial in with your lights.</span></div><span class="chev">›</span></a>
+        <a class="row" href="#/glossary"><div class="t"><b>Glossary</b><span>Every DP term in plain English.</span></div><span class="chev">›</span></a>
+        <a class="row" href="#/sources"><div class="t"><b>Sources and books</b><span>Where every number comes from.</span></div><span class="chev">›</span></a>
+      </div>
+      <div class="footer">DP Field Guide ${esc(CFG.version || "")}. Works offline once opened.</div>`;
   }
   function pageTool(k) {
     const t = G.tools[k]; if (!t) return notFound();
     setTitle(t.title, true); setTab("tools");
-    view.innerHTML = `<p class="lead">${esc(t.blurb)}</p>${t.html || ""}<div class="box" data-widget="${t.widget}"></div>
-      ${t.topic && TOPIC[t.topic] ? `<div class="chips"><a class="chip" href="#/t/${t.topic}">Learn: ${esc(TOPIC[t.topic].title)}</a></div>` : ""}
+    const setups = S.filter((x) => (x.topics || []).some((q) => TL[q] && TL[q].tool === k));
+    view.innerHTML = `<p class="lead">${esc(t.blurb)}</p>
+      ${t.how ? `<div class="box"><h3>How to use it</h3><ol>${t.how.map((w) => `<li>${esc(w)}</li>`).join("")}</ol></div>` : ""}
+      <div class="box" data-widget="${t.widget}"></div>
+      ${t.means ? `<h3>What the answer means</h3><p>${esc(t.means)}</p>` : ""}
+      ${t.kit ? `<div class="box ref"><h3>With your kit</h3><p>${esc(t.kit)}</p></div>` : ""}
+      ${lessonButton(t.mc)}
+      ${setups.length ? `<div class="section-label">Setups that use it</div><div class="chips">${setups.map((x) => `<a class="chip" href="#/setup/${x.id}">${esc(x.title)}</a>`).join("")}</div>` : ""}
       ${t.src ? `<div class="small"><b>Sources:</b><ul>${srcLinks(t.src)}</ul></div>` : ""}`;
     mountWidgets(view);
   }
 
-  /* ---------- practice log ---------- */
-  function pagePractice() {
-    setTitle("Practice", false); setTab("practice");
-    const log = ST.log.slice().reverse();
-    const quizzes = Object.entries(ST.quiz);
-    view.innerHTML = `
-      <p class="lead">Reading makes you informed. Shooting makes you better. Log every drill, even the ugly ones. Note what you'd change, then shoot it again.</p>
-      <a class="btn primary wide" href="#/practice/new/">Log a practice shoot</a>
-      <div class="section-label">Your log (${log.length})</div>
-      ${log.length ? `<div class="list">${log.map((e) => `<a class="row" href="#/practice/entry/${e.id}"><div class="t"><b>${esc(e.title || "Practice")}</b><span>${esc(e.date)} · ${esc((e.change || e.worked || "").slice(0, 90))}</span></div><span class="chev">›</span></a>`).join("")}</div>`
-        : `<p class="muted">Nothing logged yet. Pick a drill from any topic, shoot it, and log it here.</p>`}
-      ${quizzes.length ? `<div class="section-label">Quiz scores</div><div class="list">${quizzes.map(([k, q]) => TOPIC[k] ? `<a class="row" href="#/t/${k}"><div class="t"><b>${esc(TOPIC[k].title)}</b><span>${q.right} of ${q.of} on ${esc(q.when)}</span></div><span class="chev">›</span></a>` : "").join("")}</div>` : ""}
-      <div class="section-label">Backup</div>
-      <div class="btnrow"><button class="btn" id="exp">Save log as a file</button><button class="btn" id="imp">Load a saved log</button><input type="file" id="impf" accept="application/json" hidden></div>
-      <p class="small muted">Your log lives only on this phone. Save a copy now and then. It's also how you'd move it to a new phone.</p>`;
-    $("#exp").addEventListener("click", exportLog);
-    $("#imp").addEventListener("click", () => $("#impf").click());
-    $("#impf").addEventListener("change", importLog);
-  }
-  function exportLog() {
-    const blob = new Blob([JSON.stringify({ app: "dp-field-guide", saved: new Date().toISOString(), data: ST }, null, 1)], { type: "application/json" });
-    const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "dp-field-guide-backup-" + new Date().toISOString().slice(0, 10) + ".json";
-    document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 500);
-  }
-  function importLog(ev) {
-    const f = ev.target.files[0]; if (!f) return;
-    const r = new FileReader();
-    r.onload = () => {
-      try {
-        const d = JSON.parse(r.result); if (d.app !== "dp-field-guide" || !d.data) throw new Error("not a field guide backup");
-        const ids = new Set(ST.log.map((e) => e.id));
-        (d.data.log || []).forEach((e) => { if (!ids.has(e.id)) ST.log.push(e); });
-        Object.assign(ST.learned, d.data.learned || {}); Object.assign(ST.quiz, d.data.quiz || {});
-        save(); toast("Backup loaded"); pagePractice();
-      } catch (e) { toast("That file is not a Field Guide backup"); }
-    };
-    r.readAsText(f);
-  }
-  function pageNewEntry(from, editId) {
-    setTitle(editId ? "Edit entry" : "Log a shoot", true); setTab("practice");
-    const e = editId ? ST.log.find((x) => x.id === editId) || {} : {};
-    let title = e.title || "";
-    if (!editId && from) {
-      if (from.startsWith("setup-") && SETUP[from.slice(6)]) title = "Setup: " + SETUP[from.slice(6)].title;
-      else if (TOPIC[from]) title = "Drill: " + TOPIC[from].title;
-    }
-    const K = kit();
-    view.innerHTML = `
-      <label class="f">What you practiced</label><input type="text" id="e_title" value="${esc(title)}" placeholder="Drill or setup name">
-      <div class="two"><div><label class="f">Date</label><input type="date" id="e_date" value="${esc(e.date || new Date().toISOString().slice(0, 10))}"></div>
-      <div><label class="f">Camera</label><select id="e_cam">${(K.cameras || []).map((c) => `<option ${e.cam === c.name ? "selected" : ""}>${esc(c.name)}</option>`).join("")}<option ${e.cam === "Other" ? "selected" : ""}>Other</option></select></div></div>
-      <label class="f">Settings (lens, T-stop, ISO, shutter, white balance, ND)</label><input type="text" id="e_set" value="${esc(e.settings || "")}" placeholder="50mm, T2.8, ISO 800, 180°, 5600K, ND 0.6">
-      <label class="f">Lights and where they were</label><textarea id="e_lights" placeholder="200x S in Light Dome III, 45° camera left, 5 ft, 40%">${esc(e.lights || "")}</textarea>
-      <label class="f">What worked</label><textarea id="e_worked">${esc(e.worked || "")}</textarea>
-      <label class="f">What you'd change next time</label><textarea id="e_change">${esc(e.change || "")}</textarea>
-      <label class="f">Clip names or where the footage is</label><input type="text" id="e_clips" value="${esc(e.clips || "")}" placeholder="A001_C004, F:\\Lighting Practice\\...">
-      <div class="btnrow"><button class="btn primary" id="e_save">Save</button>${editId ? '<button class="btn" id="e_del">Delete</button>' : ""}</div>`;
-    $("#e_save").addEventListener("click", () => {
-      const rec = { id: editId || "e" + Date.now().toString(36), from: e.from || from || "", title: $("#e_title").value.trim(), date: $("#e_date").value, cam: $("#e_cam").value,
-        settings: $("#e_set").value.trim(), lights: $("#e_lights").value.trim(), worked: $("#e_worked").value.trim(), change: $("#e_change").value.trim(), clips: $("#e_clips").value.trim() };
-      if (editId) ST.log = ST.log.map((x) => (x.id === editId ? rec : x)); else ST.log.push(rec);
-      save(); toast("Saved"); location.hash = "#/practice/entry/" + rec.id;
-    });
-    if (editId) $("#e_del").addEventListener("click", () => {
-      if (!confirm("Delete this entry?")) return;
-      ST.log = ST.log.filter((x) => x.id !== editId); save(); location.hash = "#/practice";
-    });
-  }
-  function pageEntry(id) {
-    const e = ST.log.find((x) => x.id === id); if (!e) return notFound();
-    setTitle(e.title || "Entry", true); setTab("practice");
-    const from = e.from && (TOPIC[e.from] ? `#/t/${e.from}` : e.from.startsWith("setup-") ? `#/setup/${e.from.slice(6)}` : "");
-    view.innerHTML = `<dl class="kv"><dt>Date</dt><dd>${esc(e.date)}</dd><dt>Camera</dt><dd>${esc(e.cam)}</dd><dt>Settings</dt><dd>${esc(e.settings)}</dd><dt>Clips</dt><dd>${esc(e.clips)}</dd></dl>
-      <h3>Lights</h3><p>${esc(e.lights) || '<span class="muted">None noted</span>'}</p>
-      <h3>What worked</h3><p>${esc(e.worked) || '<span class="muted">None noted</span>'}</p>
-      <h3>Next time</h3><p>${esc(e.change) || '<span class="muted">None noted</span>'}</p>
-      <div class="btnrow"><a class="btn" href="#/practice/edit/${e.id}">Edit</a>${from ? `<a class="btn" href="${from}">Open the drill</a>` : ""}</div>`;
-  }
-
   /* ---------- other pages ---------- */
-  function pagePath() {
-    setTitle("Study path", true); setTab("learn");
-    view.innerHTML = `<p class="lead">${esc(G.path.intro)}</p>` + G.path.steps.map((p) => `
-      <div class="box"><h3>${esc(p.title)}</h3><p class="small muted">${esc(p.when)}</p><p>${esc(p.why)}</p>
-      <div class="chips">${p.topics.map((k) => TOPIC[k] ? `<a class="chip ${ST.learned[k] ? "on" : ""}" href="#/t/${k}">${esc(TOPIC[k].title)}</a>` : "").join("")}${(p.mc || []).map(mcLink).join("")}</div></div>`).join("");
-  }
   function pageGlossary() {
-    setTitle("Glossary", true); setTab("learn");
+    setTitle("Glossary", false); setTab("glossary");
     const cats = [];
     G.glossary.forEach(([w, d, c]) => { c = c || "Terms"; if (!cats.includes(c)) cats.push(c); });
     const slug = (t) => String(t).toLowerCase().replace(/[^a-z0-9]+/g, "-");
@@ -326,18 +168,18 @@
     }));
   }
   function pageSources() {
-    setTitle("Sources and books", true); setTab("learn");
+    setTitle("Sources and books", true); setTab("tools");
     view.innerHTML = `<p class="lead">${esc(G.sourcesIntro)}</p>
       <h2>Books</h2>${Object.values(G.books).map((b) => `<div class="box ref"><b>${esc(b.title)}</b><p class="small">${esc(b.note)}</p></div>`).join("")}
       <h2>Web sources</h2><ul>${srcLinks(Object.keys(G.sources))}</ul>`;
   }
   function pageSettings() {
-    setTitle("Settings and my kit", true); setTab("learn");
+    setTitle("Settings and my kit", false); setTab("settings");
     const K = kit();
     view.innerHTML = `
       <label class="f">Units</label><select id="s_units"><option value="imperial">Feet</option><option value="metric">Meters</option></select>
       <label class="f">Look</label><select id="s_theme"><option value="auto">Match the phone</option><option value="dark">Dark</option><option value="light">Light</option><option value="night">Night (red, keeps your eyes dark-adapted)</option></select>
-      <h2>My kit</h2><p class="small muted">The calculators and the log use this list. Edit it as plain text, one item per line. Cameras: name, sensor width mm, sensor height mm, base ISOs.</p>
+      <h2>My kit</h2><p class="small muted">The tools use this list. Edit it as plain text, one item per line. Cameras: name, sensor width mm, sensor height mm, base ISOs.</p>
       <label class="f">Cameras</label><textarea id="s_cams" rows="5">${esc((K.cameras || []).map((c) => [c.name, c.w, c.h, (c.iso || []).join("/")].join(", ")).join("\n"))}</textarea>
       <label class="f">Lenses (focal length in mm, then a name)</label><textarea id="s_lenses" rows="6">${esc((K.lenses || []).map((l) => l.f + ", " + l.name).join("\n"))}</textarea>
       <label class="f">Lights</label><textarea id="s_lights" rows="6">${esc((K.lights || []).join("\n"))}</textarea>
@@ -359,9 +201,8 @@
   /* ---------- search ---------- */
   const IDX = [];
   const strip = (h) => String(h || "").replace(/<[^>]+>/g, " ").replace(/&[a-z]+;/g, " ");
-  G.sections.forEach((s) => s.topics.forEach((t) => IDX.push({ href: "#/t/" + t.id, title: t.title, sub: s.title, text: (t.title + " " + t.summary + " " + strip(t.html) + " " + (t.keywords || "")).toLowerCase() })));
   S.forEach((x) => IDX.push({ href: "#/setup/" + x.id, title: x.title, sub: "Setup", text: (x.title + " " + x.look + " " + strip(x.html) + " " + x.watch.join(" ") + " " + (x.keywords || "")).toLowerCase() }));
-  Object.entries(G.tools).forEach(([k, t]) => IDX.push({ href: "#/tool/" + k, title: t.title, sub: "Tool", text: (t.title + " " + t.blurb + " " + (t.keywords || "")).toLowerCase() }));
+  Object.entries(G.tools).forEach(([k, t]) => IDX.push({ href: "#/tool/" + k, title: t.title, sub: "Tool", text: (t.title + " " + t.blurb + " " + (t.how || []).join(" ") + " " + (t.means || "") + " " + (t.kit || "") + " " + (t.keywords || "")).toLowerCase() }));
   G.glossary.forEach(([w, d, c]) => IDX.push({ href: "#/glossary", title: w, sub: "Glossary" + (c ? ": " + c : ""), text: (w + " " + d + " " + (c || "")).toLowerCase() }));
 
   function pageSearch(q) {
@@ -392,17 +233,12 @@
     if (a !== "search") $("#searchBar").hidden = true;
     window.WIDGETS && window.WIDGETS._stop && window.WIDGETS._stop();
     if (!a) pageHome();
-    else if (a === "s") pageSection(b);
-    else if (a === "t") pageTopic(b);
+    else if (a === "t") pageOldTopic(b);
+    else if (a === "s" || a === "path" || a === "practice") location.replace("#/");
     else if (a === "setups") pageSetups();
     else if (a === "setup") pageSetup(b);
     else if (a === "tools") pageTools();
     else if (a === "tool") pageTool(b);
-    else if (a === "practice" && b === "new") pageNewEntry(c || "");
-    else if (a === "practice" && b === "edit") pageNewEntry("", c);
-    else if (a === "practice" && b === "entry") pageEntry(c);
-    else if (a === "practice") pagePractice();
-    else if (a === "path") pagePath();
     else if (a === "glossary") pageGlossary();
     else if (a === "sources") pageSources();
     else if (a === "settings") pageSettings();

@@ -143,3 +143,6 @@ input[type=range] { width: 100%; accent-color: var(--tungsten); height: 32px; }
 [hidden] { display: none !important; }
 svg.plan { display: block; width: 100%; height: auto; border-radius: 10px; }
 svg.plan .lb { font: 600 10px system-ui, sans-serif; fill: #d5dbe1; paint-order: stroke; stroke: #14171c; stroke-width: 3px; }
+
+.center { text-align: center; }
+.btn.wide + .small { margin-top: 6px; }
